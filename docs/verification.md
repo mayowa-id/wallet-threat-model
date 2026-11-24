@@ -19,12 +19,14 @@ Once a check runs, record it as passed, failed, or blocked and link its evidence
 
 ## Reference implementation results
 
-Run `node --test reference/wallet.test.mjs` from the repository root with Node.js 22. The run on 2026-11-23 used Node.js 22.13.1 and the local working tree. All five assertions groups passed. The full checks in the table remain planned.
+Run `node --test reference/wallet.test.mjs reference/provider-events.test.mjs` from the repository root with Node.js 22. The local run on 2026-11-24 used Node.js 22.13.1 and passed all eight tests. The full checks in the table remain planned.
 
 | Check | Evidence from this run | Remaining coverage |
 | --- | --- | --- |
+| V3 | Signed deposit confirmations match the registered reference, amount, and currency before posting. Repeat confirmations produce one balanced credit. | Durable posting and the selected provider's funding finality rules. |
 | V4 | One balanced posting on retry, rejection of changed operation details, and shared available funds across competing transfers and holds. | Datastore-backed concurrency and atomicity across workers. |
 | V5 | A held operation retains its original amount and destination. | Authorization bound to the customer and payout currency. |
 | V6 | The mock returns an ambiguous result without releasing the hold. A retry uses the same identifier. Settlement posts once and terminal failure releases once. | Persistence across process restarts and provider guarantees for deduplication and outcome resolution. |
+| V7 | Invalid signatures and mismatched payouts leave the ledger unchanged. Duplicate events are suppressed. Conflicting outcomes are recorded, including when a callback arrives before the payout response. | Durable event and exception records, and validation against the selected provider's callback protocol. |
 
-The runnable cases are in [wallet.test.mjs](../reference/wallet.test.mjs). The reference uses in-memory state, one implicit currency, and a mocked provider.
+The runnable cases are in [wallet.test.mjs](../reference/wallet.test.mjs) and [provider-events.test.mjs](../reference/provider-events.test.mjs). The reference uses in-memory state, one configured currency, and a synthetic HMAC-SHA256 callback protocol.

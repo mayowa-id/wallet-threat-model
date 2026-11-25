@@ -19,10 +19,12 @@ Once a check runs, record it as passed, failed, or blocked and link its evidence
 
 ## Reference implementation results
 
-Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 22. The local suite passed all 13 tests on Node.js 22.13.1. The full checks in the table remain planned.
+Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 22. The local suite passed all 16 tests on Node.js 22.13.1. The full checks in the table remain planned.
 
 | Check | Evidence from this run | Remaining coverage |
 | --- | --- | --- |
+| V1 | Recovery credentials are single-use, expire, and are superseded by new credentials. Recovery revokes existing sessions for the account. Destination changes and withdrawals require proof bound to the current session and exact action. See [recovery.test.mjs](../reference/recovery.test.mjs). | Production identity provider, recovery proof delivery, session expiry, and durable revocation across workers. |
+| V2 | Recovery review is restricted to configured reviewers. The review record, replay error, and diagnostic inspection omit raw credentials. See [recovery.test.mjs](../reference/recovery.test.mjs). | Authenticated staff access and end-to-end redaction in HTTP, logging, and telemetry. |
 | V3 | Signed deposit confirmations match the registered reference, amount, and currency before posting. Repeat confirmations produce one balanced credit. | Durable posting and the selected provider's funding finality rules. |
 | V4 | One balanced posting on retry, rejection of changed operation details, and shared available funds across competing transfers and holds. | Datastore-backed concurrency and atomicity across workers. |
 | V5 | A held operation retains its original amount and destination. | Authorization bound to the customer and payout currency. |
@@ -33,5 +35,7 @@ Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 2
 | V10 | An overdue hold and a missing settlement batch alert at their configured deadlines. The payout alert distinguishes queued work from an unknown provider outcome. The alerts clear after catch-up and the retried payout posts once. See [monitoring.test.mjs](../reference/monitoring.test.mjs). | Worker scheduling, operational thresholds, persistent settlement schedules, and alert delivery. |
 
 The health check takes a snapshot of pending payouts and expected settlement batches with their receipt times. It alerts on the first evaluation at or after the hold age limit or the batch due time plus its grace period. The test uses a 100 ms payout age limit and a 20 ms settlement grace period to exercise both boundaries with a synthetic clock.
+
+The recovery reference stores token digests and delegates authentication and one-time proof verification to a trusted identity adapter. Customer-facing callers would route withdrawals and destination changes through `WalletAccess`. The wallet itself is the internal ledger service.
 
 The runnable cases are in [wallet.test.mjs](../reference/wallet.test.mjs), [provider-events.test.mjs](../reference/provider-events.test.mjs), and [reconciliation.test.mjs](../reference/reconciliation.test.mjs). The reference uses in-memory state, one configured currency, and a synthetic HMAC-SHA256 callback protocol. Reconciliation expects complete ledger and provider snapshots for the same batch.

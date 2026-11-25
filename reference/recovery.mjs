@@ -18,17 +18,22 @@ export class WalletAccess {
   #verify;
   #now;
   #recoveryTtlMs;
+  #sessionTtlMs;
   #reviewers;
   #accounts = new Map();
   #sessions = new Map();
 
-  constructor(wallet, { verify, recoveryReviewers = [], now = Date.now, recoveryTtlMs = 900_000 }) {
+  constructor(wallet, {
+    verify, recoveryReviewers = [], now = Date.now, recoveryTtlMs = 900_000, sessionTtlMs = 3_600_000,
+  }) {
     if (typeof verify !== 'function') throw new Error('Identity verifier required');
     if (!Number.isSafeInteger(recoveryTtlMs) || recoveryTtlMs <= 0) throw new Error('Invalid recovery lifetime');
+    if (!Number.isSafeInteger(sessionTtlMs) || sessionTtlMs <= 0) throw new Error('Invalid session lifetime');
     this.#wallet = wallet;
     this.#verify = verify;
     this.#now = now;
     this.#recoveryTtlMs = recoveryTtlMs;
+    this.#sessionTtlMs = sessionTtlMs;
     this.#reviewers = new Set(recoveryReviewers);
   }
 
@@ -48,7 +53,7 @@ export class WalletAccess {
     const token = newToken();
     const digest = tokenDigest(token);
     record.sessions.add(digest);
-    this.#sessions.set(digest, account);
+    this.#sessions.set(digest, { account, expiresAt: this.#now() + this.#sessionTtlMs });
     return token;
   }
 
@@ -81,9 +86,25 @@ export class WalletAccess {
 
   #session(token) {
     const digest = tokenDigest(token);
-    if (!this.#sessions.has(digest)) throw new Error('Invalid session');
-    const account = this.#sessions.get(digest);
+    const session = this.#sessions.get(digest);
+    if (!session) throw new Error('Invalid session');
+    const { account, expiresAt } = session;
+    if (this.#now() >= expiresAt) {
+      this.#revokeSession(digest, account);
+      throw new Error('Invalid session');
+    }
     return { account, record: this.#accounts.get(account), sessionId: digest };
+  }
+
+  #revokeSession(digest, account) {
+    this.#sessions.delete(digest);
+    this.#accounts.get(account).sessions.delete(digest);
+  }
+
+  signOut(token) {
+    const digest = tokenDigest(token);
+    const session = this.#sessions.get(digest);
+    if (session) this.#revokeSession(digest, session.account);
   }
 
   setPayoutDestination(session, destination, proof) {

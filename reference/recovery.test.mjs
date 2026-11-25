@@ -9,13 +9,14 @@ function sessionId(token) {
   return createHash('sha256').update(token).digest('hex');
 }
 
-function fixture() {
+function fixture({ sessionTtlMs } = {}) {
   let now = 1_000;
   const wallet = new Wallet({ alice: 100, bob: 100 });
   const proofs = new Map();
   const access = new WalletAccess(wallet, {
     now: () => now,
     recoveryTtlMs: 100,
+    sessionTtlMs,
     recoveryReviewers: ['reviewer'],
     verify(request, proof) {
       if (proofs.get(proof) !== JSON.stringify(request) || !proofs.has(proof)) return false;
@@ -30,6 +31,39 @@ function fixture() {
   }
   return { access, wallet, proof, advance: (ms) => { now += ms; } };
 }
+
+test('V1: signing out revokes only that session, and sessions expire at the configured deadline', () => {
+  const { access, wallet, proof, advance } = fixture({ sessionTtlMs: 100 });
+  const account = 'alice';
+  const signIn = () => access.signIn(account, proof({ action: 'sign-in', account }));
+  const first = signIn();
+  const second = signIn();
+  const destination = 'bank';
+  const setDestination = (session) => access.setPayoutDestination(session, destination, proof({
+    action: 'set-payout-destination', account, sessionId: sessionId(session), destination,
+  }));
+  const withdraw = (session, id) => access.requestWithdrawal(session, id, 10, proof({
+    action: 'withdraw', account, sessionId: sessionId(session), id, amount: 10, destination,
+  }));
+
+  access.signOut(first);
+  access.signOut(first);
+  assert.throws(() => setDestination(first), /Invalid session/);
+  assert.throws(() => withdraw(first, 'revoked'), /Invalid session/);
+  advance(99);
+  setDestination(second);
+  withdraw(second, 'valid');
+  advance(1);
+  assert.throws(() => withdraw(second, 'expired'), /Invalid session/);
+  assert.throws(() => setDestination(second), /Invalid session/);
+  assert.equal(wallet.available(account), 90);
+
+  const credential = access.issueRecoveryCredential(account, proof({ action: 'issue-recovery', account }));
+  const { session } = access.recover(account, credential);
+  setDestination(session);
+  advance(100);
+  assert.throws(() => setDestination(session), /Invalid session/);
+});
 
 test('V1: replacement, expiry, and successful recovery invalidate credentials and old sessions', () => {
   const { access, proof, advance } = fixture();

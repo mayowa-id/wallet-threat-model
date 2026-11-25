@@ -5,19 +5,25 @@ export class Wallet {
   #balances;
   #currency;
   #providerSecret;
+  #adjustmentProposers;
+  #adjustmentApprovers;
   #operations = new Map();
   #depositsByReference = new Map();
   #providerEvents = new Map();
   #exceptions = new Map();
   #journal = [];
 
-  constructor(balances, { currency = 'USD', providerSecret } = {}) {
+  constructor(balances, {
+    currency = 'USD', providerSecret, adjustmentProposers = [], adjustmentApprovers = [],
+  } = {}) {
     if (typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency)) throw new Error('Invalid currency');
     if (providerSecret !== undefined && (!Buffer.isBuffer(providerSecret) || providerSecret.length === 0)) {
       throw new Error('Invalid provider secret');
     }
     this.#currency = currency;
     this.#providerSecret = providerSecret && Buffer.from(providerSecret);
+    this.#adjustmentProposers = new Set(adjustmentProposers);
+    this.#adjustmentApprovers = new Set(adjustmentApprovers);
     this.#balances = new Map(Object.entries(balances));
     for (const balance of this.#balances.values()) {
       if (!Number.isSafeInteger(balance) || balance < 0) throw new Error('Invalid balance');
@@ -44,7 +50,7 @@ export class Wallet {
   get postedProviderMovements() {
     const movements = [];
     for (const [id, { intent, state }] of this.#operations) {
-      if (state !== 'posted' || intent.kind === 'transfer') continue;
+      if (state !== 'posted' || !['deposit', 'withdrawal'].includes(intent.kind)) continue;
       movements.push({
         kind: intent.kind,
         reference: intent.kind === 'deposit' ? intent.reference : id,
@@ -68,6 +74,41 @@ export class Wallet {
 
   #requireFunds(account, amount) {
     if (this.available(account) < amount) throw new Error('Insufficient funds');
+  }
+
+  // Staff IDs must come from the authenticated caller context.
+  proposeAdjustment(id, actor, { account, delta, reason }) {
+    if (typeof actor !== 'string' || !actor || !this.#adjustmentProposers.has(actor)) {
+      throw new Error('Adjustment proposal permission required');
+    }
+    if (!this.#balances.has(account)) throw new Error('Unknown account');
+    if (!Number.isSafeInteger(delta) || delta === 0 || typeof reason !== 'string' || !reason.trim()) {
+      throw new Error('Adjustment requires a nonzero amount and reason');
+    }
+    const intent = { kind: 'adjustment', account, delta, amount: Math.abs(delta), reason: reason.trim(), actor };
+    const existing = this.#begin(id, intent);
+    if (existing) return existing.state;
+    this.#operations.set(id, { intent, state: 'pending' });
+    return 'pending';
+  }
+
+  approveAdjustment(id, approver) {
+    if (typeof approver !== 'string' || !approver || !this.#adjustmentApprovers.has(approver)) {
+      throw new Error('Adjustment approval permission required');
+    }
+    const operation = this.#operations.get(id);
+    if (operation?.intent.kind !== 'adjustment') throw new Error('Unknown adjustment');
+    const { account, delta, reason, actor } = operation.intent;
+    if (actor === approver) throw new Error('Independent approval required');
+    if (operation.state === 'posted') {
+      if (operation.approver !== approver) throw new Error('Adjustment already approved');
+      return 'posted';
+    }
+    if (delta < 0) this.#requireFunds(account, -delta);
+    this.#postCounterpartyMovement(id, account, delta, { adjustment: { actor, approver, reason } });
+    operation.approver = approver;
+    operation.state = 'posted';
+    return 'posted';
   }
 
   transfer(id, account, recipient, amount) {
@@ -132,11 +173,14 @@ export class Wallet {
 
   #postProviderMovement(id, operation, isDeposit) {
     const { account, amount } = operation.intent;
-    const delta = isDeposit ? amount : -amount;
+    this.#postCounterpartyMovement(id, account, isDeposit ? amount : -amount);
+  }
+
+  #postCounterpartyMovement(id, account, delta, metadata = {}) {
     const balance = this.#balances.get(account) + delta;
     if (!Number.isSafeInteger(balance)) throw new Error('Balance overflow');
     this.#balances.set(account, balance);
-    this.#journal.push({ id, entries: [{ account, delta }, { account: null, delta: -delta }] });
+    this.#journal.push({ id, entries: [{ account, delta }, { account: null, delta: -delta }], ...metadata });
   }
 
   #recordConflict(details) {

@@ -5,6 +5,7 @@ export class Wallet {
   #balances;
   #currency;
   #providerSecret;
+  #now;
   #adjustmentProposers;
   #adjustmentApprovers;
   #operations = new Map();
@@ -14,13 +15,14 @@ export class Wallet {
   #journal = [];
 
   constructor(balances, {
-    currency = 'USD', providerSecret, adjustmentProposers = [], adjustmentApprovers = [],
+    currency = 'USD', providerSecret, adjustmentProposers = [], adjustmentApprovers = [], now = Date.now,
   } = {}) {
     if (typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency)) throw new Error('Invalid currency');
     if (providerSecret !== undefined && (!Buffer.isBuffer(providerSecret) || providerSecret.length === 0)) {
       throw new Error('Invalid provider secret');
     }
     this.#currency = currency;
+    this.#now = now;
     this.#providerSecret = providerSecret && Buffer.from(providerSecret);
     this.#adjustmentProposers = new Set(adjustmentProposers);
     this.#adjustmentApprovers = new Set(adjustmentApprovers);
@@ -59,6 +61,16 @@ export class Wallet {
       });
     }
     return movements;
+  }
+
+  get pendingPayouts() {
+    const payouts = [];
+    for (const [id, operation] of this.#operations) {
+      if (operation.state === 'held') {
+        payouts.push({ id, heldAt: operation.heldAt, submitted: operation.submitted === true });
+      }
+    }
+    return payouts;
   }
 
   #begin(id, intent) {
@@ -129,7 +141,7 @@ export class Wallet {
     const intent = Object.freeze({ kind: 'withdrawal', account, destination, amount });
     if (this.#begin(id, intent)) return;
     this.#requireFunds(account, amount);
-    this.#operations.set(id, { intent, state: 'held' });
+    this.#operations.set(id, { intent, state: 'held', heldAt: this.#now() });
   }
 
   registerDeposit(id, account, reference, amount) {

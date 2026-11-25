@@ -19,7 +19,7 @@ Once a check runs, record it as passed, failed, or blocked and link its evidence
 
 ## Reference implementation results
 
-Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 22. The local suite passed all 12 tests on Node.js 22.13.1. The full checks in the table remain planned.
+Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 22. The local suite passed all 13 tests on Node.js 22.13.1. The full checks in the table remain planned.
 
 | Check | Evidence from this run | Remaining coverage |
 | --- | --- | --- |
@@ -30,5 +30,8 @@ Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 2
 | V7 | Invalid signatures and mismatched payouts leave the ledger unchanged. Duplicate events are suppressed. Conflicting outcomes are recorded, including when a callback arrives before the payout response. | Durable event and exception records, and validation against the selected provider's callback protocol. |
 | V8 | Missing, duplicate, and mismatched settlement records produce one exception per movement per batch. A matching pair resolves the exception. Comparison leaves the journal unchanged. | Provider statement ingestion, durable exception history, and the approved adjustment workflow for balance corrections. |
 | V9 | Unauthorized actors and self-approval are rejected. An independent approval posts one balanced entry recording both staff IDs, the reason, and the journal ID. Debits respect withdrawal holds. See [adjustments.test.mjs](../reference/adjustments.test.mjs). | Authenticated staff identity, durable audit storage, and linkage to reconciliation exceptions. |
+| V10 | An overdue hold and a missing settlement batch alert at their configured deadlines. The payout alert distinguishes queued work from an unknown provider outcome. The alerts clear after catch-up and the retried payout posts once. See [monitoring.test.mjs](../reference/monitoring.test.mjs). | Worker scheduling, operational thresholds, persistent settlement schedules, and alert delivery. |
+
+The health check takes a snapshot of pending payouts and expected settlement batches with their receipt times. It alerts on the first evaluation at or after the hold age limit or the batch due time plus its grace period. The test uses a 100 ms payout age limit and a 20 ms settlement grace period to exercise both boundaries with a synthetic clock.
 
 The runnable cases are in [wallet.test.mjs](../reference/wallet.test.mjs), [provider-events.test.mjs](../reference/provider-events.test.mjs), and [reconciliation.test.mjs](../reference/reconciliation.test.mjs). The reference uses in-memory state, one configured currency, and a synthetic HMAC-SHA256 callback protocol. Reconciliation expects complete ledger and provider snapshots for the same batch.

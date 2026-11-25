@@ -41,6 +41,20 @@ export class Wallet {
     return structuredClone([...this.#exceptions.values()]);
   }
 
+  get postedProviderMovements() {
+    const movements = [];
+    for (const [id, { intent, state }] of this.#operations) {
+      if (state !== 'posted' || intent.kind === 'transfer') continue;
+      movements.push({
+        kind: intent.kind,
+        reference: intent.kind === 'deposit' ? intent.reference : id,
+        amount: intent.amount,
+        currency: this.#currency,
+      });
+    }
+    return movements;
+  }
+
   #begin(id, intent) {
     if (typeof id !== 'string' || !id || !Number.isSafeInteger(intent.amount) || intent.amount <= 0) {
       throw new Error('Invalid operation');

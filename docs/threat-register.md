@@ -19,4 +19,12 @@ Initial scores use the [implementation plan rubric](../IMPLEMENTATION_PLAN.md#ri
 
 F1 through F7 have an initial design review in the table. The review considers identity at entry points, data integrity across writes, attribution on sensitive actions, confidentiality at boundaries, service availability, and privilege on restricted operations. Repeat the review after choosing a provider and specifying deployment and access roles.
 
-All listed risks are open with proposed mitigation. The repository maintainer owns the draft. A ledger reviewer and a payments reviewer still need to assess the assumptions, evidence, and residual risk before marking the model reviewed. No residual-risk acceptance is recorded.
+All listed risks are open with proposed mitigation. The repository maintainer owns the draft. The [verification results](verification.md#reference-implementation-results) provide reference evidence for V1 through V10. Residual-risk decisions are pending.
+
+| Pending review | Reviewer to assign | Decision to record |
+| --- | --- | --- |
+| Account access and recovery | Identity reviewer | Confirm recovery and session assumptions and assess V1–V2 evidence. |
+| Ledger posting and staff adjustments | Ledger reviewer | Confirm balance invariants and approval boundaries and assess V4 and V9 evidence. |
+| Provider integration and settlement operations | Payments reviewer | Confirm custody and settlement assumptions and assess V3, V5–V8, and V10 evidence. |
+
+Before publishing v1, record each reviewer's name, review date, and findings. For each unresolved risk, record the treatment decision, owner, and remaining evidence needed. Any accepted high or critical residual risk requires a named approver and a review date.

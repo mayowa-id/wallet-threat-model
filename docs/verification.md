@@ -19,6 +19,8 @@ Once a check runs, record it as passed, failed, or blocked and link its evidence
 
 ## Reference implementation results
 
+The [Reference wallet tests workflow](../.github/workflows/reference-tests.yml) runs the same suite on pull requests and pushes to `main`. Link the workflow run to the reviewed revision when recording v1 evidence.
+
 Run `node --test 'reference/*.test.mjs'` from the repository root with Node.js 22. The local suite passed all 17 tests on Node.js 22.13.1. The full checks in the table remain planned.
 
 | Check | Evidence from this run | Remaining coverage |

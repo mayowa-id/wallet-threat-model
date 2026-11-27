@@ -28,3 +28,5 @@ All listed risks are open with proposed mitigation. The repository maintainer ow
 | Provider integration and settlement operations | Payments reviewer | Confirm custody and settlement assumptions and assess V3, V5–V8, and V10 evidence. |
 
 Before publishing v1, record each reviewer's name, review date, and findings. For each unresolved risk, record the treatment decision, owner, and remaining evidence needed. Any accepted high or critical residual risk requires a named approver and a review date.
+
+Track review evidence and decisions in the [v1 review record](v1-review.md).
